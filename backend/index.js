@@ -3,122 +3,132 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require("uuid");
-const path = require('path');
+const path = require("path");
+const mongoose = require("mongoose");
+const Presentation = require("./models/Presentation");
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
+const io = new Server(server, { cors: { origin: "*" } });
+
+mongoose
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 app.use(cors());
 app.use(express.json());
 
-const presentations = {};
-
 app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+app.get("/api/presentations", async (req, res) => {
+  try {
+    const allPresentations = await Presentation.find({}, { _id: 0, id: 1, name: 1 });
+    res.json(allPresentations);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/presentations", async (req, res) => {
+  try {
+    const { name } = req.body;
+    const newId = uuidv4();
+    const newPresentation = new Presentation({
+      id: newId,
+      name,
+      slides: [{ id: uuidv4(), elements: [] }],
+      creatorId: null,
+      users: {},
+    });
+    await newPresentation.save();
+    res.json({ success: true, presentationId: newId });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/presentations/:presentationId", async (req, res) => {
+  try {
+    const { presentationId } = req.params;
+    const presentation = await Presentation.findOne({ id: presentationId });
+    if (!presentation) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.json(presentation);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
 });
 
-app.get("/api/presentations", (req, res) => {
-  const list = Object.values(presentations).map((p) => ({
-    id: p.id,
-    name: p.name,
-  }));
-  res.json(list);
-});
-
-app.post("/api/presentations", (req, res) => {
-  const { name } = req.body;
-  const newId = uuidv4();
-  presentations[newId] = {
-    id: newId,
-    name,
-    slides: [
-      {
-        id: uuidv4(),
-        elements: [],
-      },
-    ],
-    creatorId: null,
-    users: {},
-  };
-  res.json({ success: true, presentationId: newId });
-});
-
-app.get("/api/presentations/:presentationId", (req, res) => {
-  const { presentationId } = req.params;
-  if (!presentations[presentationId]) {
-    return res.status(404).json({ error: "Not found" });
-  }
-  res.json(presentations[presentationId]);
-});
-
 io.on("connection", (socket) => {
   let currentPresentationId = null;
 
-  socket.on("join-presentation", ({ presentationId, nickname }) => {
-    if (!presentations[presentationId]) {
+  socket.on("join-presentation", async ({ presentationId, nickname }) => {
+    const pres = await Presentation.findOne({ id: presentationId });
+    if (!pres) {
       socket.emit("error-message", "Presentation not found");
       return;
     }
     currentPresentationId = presentationId;
     socket.join(presentationId);
-
-    const pres = presentations[presentationId];
-    if (!pres.creatorId && Object.keys(pres.users).length === 0) {
+    if (!pres.creatorId && pres.users.size === 0) {
       pres.creatorId = socket.id;
-      pres.users[socket.id] = { nickname, role: "creator" };
+      pres.users.set(socket.id, { nickname, role: "creator" });
     } else {
-      pres.users[socket.id] = { nickname, role: "viewer" };
+      pres.users.set(socket.id, { nickname, role: "viewer" });
     }
-
+    await pres.save();
     socket.emit("presentation-data", pres);
-    io.to(presentationId).emit("update-user-list", pres.users);
+    io.to(presentationId).emit("update-user-list", Object.fromEntries(pres.users));
   });
 
-  socket.on("update-user-role", ({ userSocketId, newRole }) => {
-    const pres = presentations[currentPresentationId];
+  socket.on("update-user-role", async ({ userSocketId, newRole }) => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
     if (!pres) return;
     if (pres.creatorId !== socket.id) return;
-    if (!pres.users[userSocketId]) return;
-
-    if (userSocketId === pres.creatorId && newRole !== "creator") {
-      return;
-    }
-    pres.users[userSocketId].role = newRole;
-    io.to(currentPresentationId).emit("update-user-list", pres.users);
+    if (!pres.users.has(userSocketId)) return;
+    if (userSocketId === pres.creatorId && newRole !== "creator") return;
+    const userData = pres.users.get(userSocketId);
+    userData.role = newRole;
+    pres.users.set(userSocketId, userData);
+    await pres.save();
+    io.to(currentPresentationId).emit("update-user-list", Object.fromEntries(pres.users));
   });
 
-  socket.on("add-slide", () => {
-    const pres = presentations[currentPresentationId];
+  socket.on("add-slide", async () => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
     if (!pres) return;
     if (pres.creatorId !== socket.id) return;
-
     pres.slides.push({ id: uuidv4(), elements: [] });
+    await pres.save();
     io.to(currentPresentationId).emit("presentation-data", pres);
   });
 
-  socket.on("remove-slide", (slideId) => {
-    const pres = presentations[currentPresentationId];
+  socket.on("remove-slide", async (slideId) => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
     if (!pres) return;
     if (pres.creatorId !== socket.id) return;
-
     pres.slides = pres.slides.filter((s) => s.id !== slideId);
+    await pres.save();
     io.to(currentPresentationId).emit("presentation-data", pres);
   });
 
-  socket.on("update-element", ({ slideId, element }) => {
-    const pres = presentations[currentPresentationId];
+  socket.on("update-element", async ({ slideId, element }) => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
     if (!pres) return;
-
-    const myRole = pres.users[socket.id]?.role;
+    const myRole = pres.users.get(socket.id)?.role;
     if (myRole !== "creator" && myRole !== "editor") return;
-
     const slide = pres.slides.find((s) => s.id === slideId);
     if (!slide) return;
-
     if (!element.id) {
       element.id = uuidv4();
       if (element.content === undefined) {
@@ -133,20 +143,20 @@ io.on("connection", (socket) => {
         slide.elements.push(element);
       }
     }
+    await pres.save();
     io.to(currentPresentationId).emit("presentation-data", pres);
   });
 
-  socket.on("remove-shape", ({ slideId, shapeId }) => {
-    const pres = presentations[currentPresentationId];
+  socket.on("remove-shape", async ({ slideId, shapeId }) => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
     if (!pres) return;
-
-    const myRole = pres.users[socket.id]?.role;
+    const myRole = pres.users.get(socket.id)?.role;
     if (myRole !== "creator" && myRole !== "editor") return;
-
     const slide = pres.slides.find((s) => s.id === slideId);
     if (!slide) return;
-
     slide.elements = slide.elements.filter((el) => el.id !== shapeId);
+    await pres.save();
     io.to(currentPresentationId).emit("presentation-data", pres);
   });
 
@@ -154,23 +164,26 @@ io.on("connection", (socket) => {
     console.log("Thumbnail updated:", thumbnail);
   });
 
-  socket.on("disconnect", () => {
-    if (currentPresentationId && presentations[currentPresentationId]) {
-      const pres = presentations[currentPresentationId];
-      delete pres.users[socket.id];
-
-      if (pres.creatorId === socket.id) {
-        const remain = Object.keys(pres.users);
-        if (remain.length > 0) {
-          const newCreatorSocketId = remain[0];
-          pres.creatorId = newCreatorSocketId;
-          pres.users[newCreatorSocketId].role = "creator";
-        } else {
-          pres.creatorId = null;
-        }
+  socket.on("disconnect", async () => {
+    if (!currentPresentationId) return;
+    const pres = await Presentation.findOne({ id: currentPresentationId });
+    if (!pres) return;
+    if (!pres.users.has(socket.id)) return;
+    pres.users.delete(socket.id);
+    if (pres.creatorId === socket.id) {
+      const remaining = Array.from(pres.users.keys());
+      if (remaining.length > 0) {
+        const newCreatorSocketId = remaining[0];
+        pres.creatorId = newCreatorSocketId;
+        const newCreatorData = pres.users.get(newCreatorSocketId);
+        newCreatorData.role = "creator";
+        pres.users.set(newCreatorSocketId, newCreatorData);
+      } else {
+        pres.creatorId = null;
       }
-      io.to(currentPresentationId).emit("update-user-list", pres.users);
     }
+    await pres.save();
+    io.to(currentPresentationId).emit("update-user-list", Object.fromEntries(pres.users));
   });
 });
 
