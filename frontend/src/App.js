@@ -6,7 +6,6 @@ import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
   const [nickname, setNickname] = useState("");
-
   return (
     <BrowserRouter>
       <Routes>
