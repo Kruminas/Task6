@@ -15,26 +15,22 @@ function Presentation({ nickname }) {
   const slideRef = useRef(null);
 
   useEffect(() => {
-    socket = io("http://localhost:5000");
+    socket = io();
     socket.on("connect", () => {
       socket.emit("join-presentation", {
         presentationId: id,
         nickname: nickname || "Guest",
       });
     });
-
     socket.on("error-message", (message) => {
       alert(message);
     });
-
     socket.on("presentation-data", (data) => {
       setPresentation({ ...data });
     });
-
     socket.on("update-user-list", (updatedUsers) => {
       setUsers(updatedUsers);
     });
-
     return () => {
       socket.disconnect();
     };
@@ -61,11 +57,7 @@ function Presentation({ nickname }) {
     if (!presentation) return;
     const text = prompt("Enter text (Markdown supported)");
     if (!text) return;
-    const el = {
-      content: text,
-      x: 50,
-      y: 50,
-    };
+    const el = { content: text, x: 50, y: 50 };
     const slideId = presentation.slides[selectedSlideIndex].id;
     addOrUpdateElement(slideId, el);
   };
@@ -74,11 +66,7 @@ function Presentation({ nickname }) {
     if (!presentation) return;
     const url = prompt("Enter image URL");
     if (!url) return;
-    const el = {
-      content: "img:" + url,
-      x: 50,
-      y: 50,
-    };
+    const el = { content: "img:" + url, x: 50, y: 50 };
     const slideId = presentation.slides[selectedSlideIndex].id;
     addOrUpdateElement(slideId, el);
   };
@@ -88,7 +76,6 @@ function Presentation({ nickname }) {
     const newX = (e.clientX - slideBox.left) / zoom - 50;
     const newY = (e.clientY - slideBox.top) / zoom - 20;
     const slideId = presentation.slides[selectedSlideIndex].id;
-
     addOrUpdateElement(slideId, { ...el, x: newX, y: newY });
   };
 
@@ -114,9 +101,7 @@ function Presentation({ nickname }) {
             {presentation.slides.map((s, i) => (
               <li
                 key={s.id}
-                className={`list-group-item ${
-                  i === selectedSlideIndex ? "active" : ""
-                }`}
+                className={`list-group-item ${i === selectedSlideIndex ? "active" : ""}`}
                 onClick={() => setSelectedSlideIndex(i)}
                 style={{ cursor: "pointer" }}
               >
@@ -152,7 +137,6 @@ function Presentation({ nickname }) {
           />
         </div>
       )}
-
       <div
         ref={slideRef}
         className="flex-grow-1 position-relative bg-secondary"
@@ -166,7 +150,6 @@ function Presentation({ nickname }) {
           const content = typeof el.content === "string" ? el.content : "";
           const isImage = content.startsWith("img:");
           const imageUrl = isImage ? content.slice(4) : null;
-
           return (
             <div
               key={el.id}
@@ -198,10 +181,7 @@ function Presentation({ nickname }) {
                   const newUrl = prompt("Edit Image URL:", imageUrl);
                   if (newUrl !== null) {
                     const slideId = presentation.slides[selectedSlideIndex].id;
-                    addOrUpdateElement(slideId, {
-                      ...el,
-                      content: "img:" + newUrl,
-                    });
+                    addOrUpdateElement(slideId, { ...el, content: "img:" + newUrl });
                   }
                 } else {
                   const newText = prompt("Edit text (Markdown)", content);
@@ -221,7 +201,6 @@ function Presentation({ nickname }) {
           );
         })}
       </div>
-
       {!presentMode && (
         <div className="bg-light p-2" style={{ width: "200px" }}>
           <h5>Users</h5>
@@ -250,24 +229,15 @@ function Presentation({ nickname }) {
           </ul>
           {isEditor && (
             <>
-              <button
-                className="btn btn-success mb-2"
-                onClick={handleAddTextBlock}
-              >
+              <button className="btn btn-success mb-2" onClick={handleAddTextBlock}>
                 Add Text
               </button>
-              <button
-                className="btn btn-secondary mb-2"
-                onClick={handleAddImageBlock}
-              >
+              <button className="btn btn-secondary mb-2" onClick={handleAddImageBlock}>
                 Add Image
               </button>
             </>
           )}
-          <button
-            className="btn btn-info"
-            onClick={() => setPresentMode((pm) => !pm)}
-          >
+          <button className="btn btn-info" onClick={() => setPresentMode((pm) => !pm)}>
             {presentMode ? "Edit Mode" : "Present Mode"}
           </button>
         </div>

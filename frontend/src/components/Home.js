@@ -7,7 +7,7 @@ function Home({ nickname, setNickname }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/presentations")
+    fetch("/api/presentations")
       .then((res) => res.json())
       .then((data) => setPresentations(data))
       .catch((err) => console.error(err));
@@ -15,7 +15,7 @@ function Home({ nickname, setNickname }) {
 
   const handleCreatePresentation = () => {
     if (!newPresentationName) return;
-    fetch("http://localhost:5000/api/presentations", {
+    fetch("/api/presentations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newPresentationName }),
