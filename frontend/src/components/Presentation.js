@@ -85,12 +85,12 @@ function Presentation({ nickname }) {
   };
 
   if (!presentation) {
-    return <div className="container mt-5">Loading...</div>;
+    return <div style={{ padding: "1rem" }}>Loading...</div>;
   }
 
   const currentSlide = presentation.slides[selectedSlideIndex];
   if (!currentSlide) {
-    return <div className="container mt-5">No slides yet...</div>;
+    return <div style={{ padding: "1rem" }}>No slides yet...</div>;
   }
 
   const myRole = users[socket.id]?.role || "viewer";
@@ -98,165 +98,187 @@ function Presentation({ nickname }) {
   const isEditor = isCreator || myRole === "editor";
 
   return (
-    <div className="d-flex" style={{ height: "100vh" }}>
-      {!presentMode && (
-        <div className="bg-light p-2" style={{ width: "200px" }}>
-          <h5>Slides</h5>
-          <ul className="list-group">
-            {presentation.slides.map((s, i) => (
-              <li
-                key={s.id}
-                className={`list-group-item ${i === selectedSlideIndex ? "active" : ""}`}
-                onClick={() => setSelectedSlideIndex(i)}
-                style={{ cursor: "pointer" }}
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "#f8f9fa",
+          padding: "0.5rem",
+        }}
+      >
+        {!presentMode && (
+          <div style={{ display: "flex", gap: "1rem" }}>
+            {isCreator && (
+              <button onClick={addSlide}>Add Slide</button>
+            )}
+            {isEditor && (
+              <>
+                <button onClick={handleAddTextBlock}>Add Text</button>
+                <button onClick={handleAddImageBlock}>Add Image</button>
+              </>
+            )}
+            <label style={{ display: "flex", alignItems: "center" }}>
+              Zoom:
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                style={{ marginLeft: "0.5rem" }}
+              />
+            </label>
+            {!presentMode && (
+              <button onClick={() => setPresentMode(true)}>Present Mode</button>
+            )}
+          </div>
+        )}
+        {presentMode && (
+          <button onClick={() => setPresentMode(false)}>Exit Present Mode</button>
+        )}
+      </div>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        {!presentMode && (
+          <div style={{ width: "200px", background: "#f1f1f1", overflowY: "auto" }}>
+            <h5 style={{ margin: "0.5rem" }}>Slides</h5>
+            <ul className="list-group" style={{ margin: "0 0.5rem" }}>
+              {presentation.slides.map((s, i) => (
+                <li
+                  key={s.id}
+                  className={`list-group-item ${i === selectedSlideIndex ? "active" : ""}`}
+                  onClick={() => setSelectedSlideIndex(i)}
+                  style={{ cursor: "pointer" }}
+                >
+                  Slide {i + 1}
+                  {isCreator && (
+                    <button
+                      className="btn btn-sm btn-danger float-end"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSlide(s.id);
+                      }}
+                      style={{ marginLeft: "1rem" }}
+                    >
+                      X
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div
+          ref={slideRef}
+          style={{
+            flex: 1,
+            position: "relative",
+            background: "#aaa",
+            overflow: "auto",
+            transform: `scale(${zoom})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {currentSlide.elements.map((el) => {
+            const content = typeof el.content === "string" ? el.content : "";
+            const isImage = content.startsWith("img:");
+            const imageUrl = isImage ? content.slice(4) : null;
+            return (
+              <div
+                key={el.id}
+                style={{
+                  position: "absolute",
+                  left: el.x + "px",
+                  top: el.y + "px",
+                  background: isImage ? "none" : "white",
+                  padding: isImage ? "0" : "5px",
+                  borderRadius: "5px",
+                  cursor: isEditor ? "move" : "default",
+                  maxWidth: "300px",
+                }}
+                onMouseEnter={() => setHoveredElId(el.id)}
+                onMouseLeave={() => setHoveredElId(null)}
+                onMouseDown={(e) => {
+                  if (!isEditor) return;
+                  if (e.button === 0) {
+                    const handleMove = (moveEvent) => handleElementDrag(moveEvent, el);
+                    const handleUp = () => {
+                      document.removeEventListener("mousemove", handleMove);
+                      document.removeEventListener("mouseup", handleUp);
+                    };
+                    document.addEventListener("mousemove", handleMove);
+                    document.addEventListener("mouseup", handleUp);
+                  }
+                }}
+                onDoubleClick={() => {
+                  if (!isEditor) return;
+                  if (isImage) {
+                    const newUrl = prompt("Edit Image URL:", imageUrl);
+                    if (newUrl !== null) {
+                      addOrUpdateElement(currentSlide.id, { ...el, content: "img:" + newUrl });
+                    }
+                  } else {
+                    const newText = prompt("Edit text (Markdown)", content);
+                    if (newText !== null) {
+                      addOrUpdateElement(currentSlide.id, { ...el, content: newText });
+                    }
+                  }
+                }}
               >
-                Slide {i + 1}
-                {isCreator && (
+                {isImage ? (
+                  <img src={imageUrl} alt="img-element" style={{ width: "200px" }} />
+                ) : (
+                  <ReactMarkdown>{content}</ReactMarkdown>
+                )}
+                {hoveredElId === el.id && isEditor && (
                   <button
-                    className="btn btn-sm btn-danger float-end"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSlide(s.id);
+                    style={{
+                      backgroundColor: "red",
+                      color: "white",
+                      border: "none",
+                      marginLeft: "5px",
                     }}
+                    onClick={() => handleRemoveElement(currentSlide.id, el.id)}
                   >
                     X
                   </button>
                 )}
-              </li>
-            ))}
-          </ul>
-          {isCreator && (
-            <button className="btn btn-primary mt-2" onClick={addSlide}>
-              Add Slide
-            </button>
-          )}
-          <hr />
-          <label>Zoom:</label>
-          <input
-            type="range"
-            min="0.5"
-            max="2"
-            step="0.1"
-            value={zoom}
-            onChange={(e) => setZoom(parseFloat(e.target.value))}
-          />
+              </div>
+            );
+          })}
         </div>
-      )}
-      <div
-        ref={slideRef}
-        className="flex-grow-1 position-relative bg-secondary"
-        style={{
-          overflow: "auto",
-          transform: `scale(${zoom})`,
-          transformOrigin: "top left",
-        }}
-      >
-        {currentSlide.elements.map((el) => {
-          const content = typeof el.content === "string" ? el.content : "";
-          const isImage = content.startsWith("img:");
-          const imageUrl = isImage ? content.slice(4) : null;
-          return (
-            <div
-              key={el.id}
-              style={{
-                position: "absolute",
-                left: el.x + "px",
-                top: el.y + "px",
-                background: isImage ? "none" : "white",
-                padding: isImage ? "0" : "5px",
-                borderRadius: "5px",
-                cursor: isEditor ? "move" : "default",
-                maxWidth: "300px",
-              }}
-              onMouseEnter={() => setHoveredElId(el.id)}
-              onMouseLeave={() => setHoveredElId(null)}
-              onMouseDown={(e) => {
-                if (!isEditor) return;
-                if (e.button === 0) {
-                  const handleMove = (moveEvent) => handleElementDrag(moveEvent, el);
-                  const handleUp = () => {
-                    document.removeEventListener("mousemove", handleMove);
-                    document.removeEventListener("mouseup", handleUp);
-                  };
-                  document.addEventListener("mousemove", handleMove);
-                  document.addEventListener("mouseup", handleUp);
-                }
-              }}
-              onDoubleClick={() => {
-                if (!isEditor) return;
-                if (isImage) {
-                  const newUrl = prompt("Edit Image URL:", imageUrl);
-                  if (newUrl !== null) {
-                    const slideId = presentation.slides[selectedSlideIndex].id;
-                    addOrUpdateElement(slideId, { ...el, content: "img:" + newUrl });
-                  }
-                } else {
-                  const newText = prompt("Edit text (Markdown)", content);
-                  if (newText !== null) {
-                    const slideId = presentation.slides[selectedSlideIndex].id;
-                    addOrUpdateElement(slideId, { ...el, content: newText });
-                  }
-                }
-              }}
-            >
-              {isImage ? (
-                <img src={imageUrl} alt="img-element" style={{ width: "200px" }} />
-              ) : (
-                <ReactMarkdown>{content}</ReactMarkdown>
-              )}
-              {hoveredElId === el.id && isEditor && (
-                <button
-                  style={{ backgroundColor: "red", color: "white", border: "none", marginLeft: "5px" }}
-                  onClick={() => handleRemoveElement(currentSlide.id, el.id)}
-                >
-                  X
-                </button>
-              )}
-            </div>
-          );
-        })}
+        {!presentMode && (
+          <div style={{ width: "200px", background: "#f1f1f1", overflowY: "auto" }}>
+            <h5 style={{ margin: "0.5rem" }}>Users</h5>
+            <ul className="list-group" style={{ margin: "0 0.5rem" }}>
+              {Object.entries(users).map(([sockId, user]) => (
+                <li key={sockId} className="list-group-item">
+                  {user.nickname} ({user.role})
+                  {isCreator && sockId !== socket.id && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <button
+                        className="btn btn-sm btn-outline-primary me-1"
+                        onClick={() => updateUserRole(sockId, "editor")}
+                        style={{ marginRight: "0.5rem" }}
+                      >
+                        Editor
+                      </button>
+                      <button
+                        className="btn btn-sm btn-outline-warning me-1"
+                        onClick={() => updateUserRole(sockId, "viewer")}
+                      >
+                        Viewer
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
-      {!presentMode && (
-        <div className="bg-light p-2" style={{ width: "200px" }}>
-          <h5>Users</h5>
-          <ul className="list-group mb-2">
-            {Object.entries(users).map(([sockId, user]) => (
-              <li key={sockId} className="list-group-item">
-                {user.nickname} ({user.role})
-                {isCreator && sockId !== socket.id && (
-                  <div className="mt-1">
-                    <button
-                      className="btn btn-sm btn-outline-primary me-1"
-                      onClick={() => updateUserRole(sockId, "editor")}
-                    >
-                      Editor
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-warning me-1"
-                      onClick={() => updateUserRole(sockId, "viewer")}
-                    >
-                      Viewer
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-          {isEditor && (
-            <>
-              <button className="btn btn-success mb-2" onClick={handleAddTextBlock}>
-                Add Text
-              </button>
-              <button className="btn btn-secondary mb-2" onClick={handleAddImageBlock}>
-                Add Image
-              </button>
-            </>
-          )}
-          <button className="btn btn-info" onClick={() => setPresentMode((pm) => !pm)}>
-            {presentMode ? "Edit Mode" : "Present Mode"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
