@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import io from "socket.io-client";
 import ReactMarkdown from "react-markdown";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -10,6 +10,7 @@ let socket;
 
 function Presentation({ nickname }) {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [presentation, setPresentation] = useState(null);
   const [users, setUsers] = useState({});
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
@@ -59,7 +60,7 @@ function Presentation({ nickname }) {
 
   const handleAddTextBlock = () => {
     if (!presentation) return;
-    const text = prompt("Enter text (Markdown supported)");
+    const text = prompt("Enter text here)");
     if (!text) return;
     const el = { content: text, x: 50, y: 50 };
     const slideId = presentation.slides[selectedSlideIndex].id;
@@ -116,23 +117,23 @@ function Presentation({ nickname }) {
         className="navbar navbar-light bg-light"
         style={{ justifyContent: "space-between", padding: "0.5rem 1rem" }}
       >
-        {!presentMode && (
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            {isCreator && (
-              <button className="btn btn-primary" onClick={addSlide}>
-                Add Slide
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {!presentMode && isCreator && (
+            <button className="btn btn-primary" onClick={addSlide}>
+              Add Slide
+            </button>
+          )}
+          {!presentMode && isEditor && (
+            <>
+              <button className="btn btn-success" onClick={handleAddTextBlock}>
+                Add Text
               </button>
-            )}
-            {isEditor && (
-              <>
-                <button className="btn btn-success" onClick={handleAddTextBlock}>
-                  Add Text
-                </button>
-                <button className="btn btn-info" onClick={handleAddImageBlock}>
-                  Add Image
-                </button>
-              </>
-            )}
+              <button className="btn btn-info" onClick={handleAddImageBlock}>
+                Add Image
+              </button>
+            </>
+          )}
+          {!presentMode && (
             <div className="d-flex align-items-center">
               <label className="me-2 mb-0">Zoom:</label>
               <input
@@ -144,19 +145,28 @@ function Presentation({ nickname }) {
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
               />
             </div>
+          )}
+          {!presentMode && (
             <button className="btn btn-warning" onClick={() => setPresentMode(true)}>
               Present Mode
             </button>
+          )}
+          {!presentMode && (
             <button className="btn btn-secondary" onClick={handleExportToPDF}>
               Export to PDF
             </button>
-          </div>
-        )}
-        {presentMode && (
-          <button className="btn btn-danger" onClick={() => setPresentMode(false)}>
-            Exit Present Mode
+          )}
+        </div>
+        <div>
+          {presentMode && (
+            <button className="btn btn-danger me-2" onClick={() => setPresentMode(false)}>
+              Exit Present Mode
+            </button>
+          )}
+          <button className="btn btn-outline-dark" onClick={() => navigate("/")}>
+            Exit Presentation
           </button>
-        )}
+        </div>
       </nav>
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {!presentMode && (
