@@ -12,6 +12,7 @@ function Presentation({ nickname }) {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
   const [presentMode, setPresentMode] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [hoveredElId, setHoveredElId] = useState(null);
   const slideRef = useRef(null);
 
   useEffect(() => {
@@ -69,6 +70,10 @@ function Presentation({ nickname }) {
     const el = { content: "img:" + url, x: 50, y: 50 };
     const slideId = presentation.slides[selectedSlideIndex].id;
     addOrUpdateElement(slideId, el);
+  };
+
+  const handleRemoveElement = (slideId, shapeId) => {
+    socket.emit("remove-shape", { slideId, shapeId });
   };
 
   const handleElementDrag = (e, el) => {
@@ -163,6 +168,8 @@ function Presentation({ nickname }) {
                 cursor: isEditor ? "move" : "default",
                 maxWidth: "300px",
               }}
+              onMouseEnter={() => setHoveredElId(el.id)}
+              onMouseLeave={() => setHoveredElId(null)}
               onMouseDown={(e) => {
                 if (!isEditor) return;
                 if (e.button === 0) {
@@ -196,6 +203,14 @@ function Presentation({ nickname }) {
                 <img src={imageUrl} alt="img-element" style={{ width: "200px" }} />
               ) : (
                 <ReactMarkdown>{content}</ReactMarkdown>
+              )}
+              {hoveredElId === el.id && isEditor && (
+                <button
+                  style={{ backgroundColor: "red", color: "white", border: "none", marginLeft: "5px" }}
+                  onClick={() => handleRemoveElement(currentSlide.id, el.id)}
+                >
+                  X
+                </button>
               )}
             </div>
           );
