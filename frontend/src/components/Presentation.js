@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 import ReactMarkdown from "react-markdown";
 import "bootstrap/dist/css/bootstrap.min.css";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 let socket;
 
@@ -85,6 +87,16 @@ function Presentation({ nickname }) {
     addOrUpdateElement(slideId, { ...el, x: newX, y: newY });
   };
 
+  const handleExportToPDF = async () => {
+    const canvas = await html2canvas(slideRef.current);
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.save("presentation.pdf");
+  };
+
   if (!presentation) {
     return <div style={{ padding: "1rem" }}>Loading...</div>;
   }
@@ -134,6 +146,9 @@ function Presentation({ nickname }) {
             </div>
             <button className="btn btn-warning" onClick={() => setPresentMode(true)}>
               Present Mode
+            </button>
+            <button className="btn btn-secondary" onClick={handleExportToPDF}>
+              Export to PDF
             </button>
           </div>
         )}
