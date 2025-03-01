@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 import ReactMarkdown from "react-markdown";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 let socket;
 
@@ -99,28 +100,29 @@ function Presentation({ nickname }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: "#f8f9fa",
-          padding: "0.5rem",
-        }}
+      <nav
+        className="navbar navbar-light bg-light"
+        style={{ justifyContent: "space-between", padding: "0.5rem 1rem" }}
       >
         {!presentMode && (
-          <div style={{ display: "flex", gap: "1rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             {isCreator && (
-              <button onClick={addSlide}>Add Slide</button>
+              <button className="btn btn-primary" onClick={addSlide}>
+                Add Slide
+              </button>
             )}
             {isEditor && (
               <>
-                <button onClick={handleAddTextBlock}>Add Text</button>
-                <button onClick={handleAddImageBlock}>Add Image</button>
+                <button className="btn btn-success" onClick={handleAddTextBlock}>
+                  Add Text
+                </button>
+                <button className="btn btn-info" onClick={handleAddImageBlock}>
+                  Add Image
+                </button>
               </>
             )}
-            <label style={{ display: "flex", alignItems: "center" }}>
-              Zoom:
+            <div className="d-flex align-items-center">
+              <label className="me-2 mb-0">Zoom:</label>
               <input
                 type="range"
                 min="0.5"
@@ -128,27 +130,30 @@ function Presentation({ nickname }) {
                 step="0.1"
                 value={zoom}
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
-                style={{ marginLeft: "0.5rem" }}
               />
-            </label>
-            {!presentMode && (
-              <button onClick={() => setPresentMode(true)}>Present Mode</button>
-            )}
+            </div>
+            <button className="btn btn-warning" onClick={() => setPresentMode(true)}>
+              Present Mode
+            </button>
           </div>
         )}
         {presentMode && (
-          <button onClick={() => setPresentMode(false)}>Exit Present Mode</button>
+          <button className="btn btn-danger" onClick={() => setPresentMode(false)}>
+            Exit Present Mode
+          </button>
         )}
-      </div>
+      </nav>
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {!presentMode && (
-          <div style={{ width: "200px", background: "#f1f1f1", overflowY: "auto" }}>
-            <h5 style={{ margin: "0.5rem" }}>Slides</h5>
-            <ul className="list-group" style={{ margin: "0 0.5rem" }}>
+          <div style={{ width: "220px", background: "#f1f1f1", overflowY: "auto" }}>
+            <h5 className="p-2">Slides</h5>
+            <ul className="list-group px-2 mb-2">
               {presentation.slides.map((s, i) => (
                 <li
                   key={s.id}
-                  className={`list-group-item ${i === selectedSlideIndex ? "active" : ""}`}
+                  className={`list-group-item mb-1 ${
+                    i === selectedSlideIndex ? "active" : ""
+                  }`}
                   onClick={() => setSelectedSlideIndex(i)}
                   style={{ cursor: "pointer" }}
                 >
@@ -239,6 +244,7 @@ function Presentation({ nickname }) {
                       color: "white",
                       border: "none",
                       marginLeft: "5px",
+                      cursor: "pointer",
                     }}
                     onClick={() => handleRemoveElement(currentSlide.id, el.id)}
                   >
@@ -250,11 +256,11 @@ function Presentation({ nickname }) {
           })}
         </div>
         {!presentMode && (
-          <div style={{ width: "200px", background: "#f1f1f1", overflowY: "auto" }}>
-            <h5 style={{ margin: "0.5rem" }}>Users</h5>
-            <ul className="list-group" style={{ margin: "0 0.5rem" }}>
+          <div style={{ width: "220px", background: "#f1f1f1", overflowY: "auto" }}>
+            <h5 className="p-2">Users</h5>
+            <ul className="list-group px-2 mb-2">
               {Object.entries(users).map(([sockId, user]) => (
-                <li key={sockId} className="list-group-item">
+                <li key={sockId} className="list-group-item mb-1">
                   {user.nickname} ({user.role})
                   {isCreator && sockId !== socket.id && (
                     <div style={{ marginTop: "0.5rem" }}>
@@ -266,7 +272,7 @@ function Presentation({ nickname }) {
                         Editor
                       </button>
                       <button
-                        className="btn btn-sm btn-outline-warning me-1"
+                        className="btn btn-sm btn-outline-warning"
                         onClick={() => updateUserRole(sockId, "viewer")}
                       >
                         Viewer
